@@ -1650,15 +1650,17 @@ export default function App() {
       queryFn: async () => {
         if (!actor || !identity) return null;
         // Initialize access control with admin token if present
-        try {
-          await withTimeout(
-            (
-              actor as unknown as CommunityBackend
-            )._initializeAccessControlWithSecret(adminSecret),
-            12000,
-          );
-        } catch {
-          // If init fails or times out, still try to get the role
+        if (adminSecret !== "") {
+          try {
+            await withTimeout(
+              (
+                actor as unknown as CommunityBackend
+              )._initializeAccessControlWithSecret(adminSecret),
+              12000,
+            );
+          } catch {
+            // If init fails or times out, still try to get the role
+          }
         }
         localStorage.removeItem("adminSecret");
         try {
