@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { backendInterface } from "../backend";
 import { createActorWithConfig } from "../config";
 import { getSecretParameter } from "../utils/urlParams";
@@ -9,7 +9,6 @@ const ACTOR_QUERY_KEY = "actor";
 export function useActor() {
   const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
-  const prevIdentityRef = useRef<string | undefined>(undefined);
   const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
     queryFn: async () => {
@@ -27,35 +26,30 @@ export function useActor() {
       };
 
       const actor = await createActorWithConfig(actorOptions);
-      const adminToken =
-        getSecretParameter("adminSecret") ||
-        getSecretParameter("caffeineAdminToken") ||
-        localStorage.getItem("adminSecret") ||
-        "";
-      if (adminToken !== "") {
-        await (actor as any)._initializeAccessControlWithSecret(adminToken);
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      if (adminToken) {
+        await (
+          actor as unknown as {
+            _initializeAccessControlWithSecret(s: string): Promise<void>;
+          }
+        )._initializeAccessControlWithSecret(adminToken);
       }
       return actor;
     },
     // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
+    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 
-  // When identity changes, invalidate ALL queries (including role queries)
-  // so getCallerUserRole is called again with the new identity
-  useEffect(() => {
-    const currentIdentity = identity?.getPrincipal().toString();
-    if (currentIdentity !== prevIdentityRef.current) {
-      prevIdentityRef.current = currentIdentity;
-      // Invalidate everything so role and all data re-fetches with the new identity
-      queryClient.invalidateQueries();
-    }
-  }, [identity, queryClient]);
-
-  // When the actor data is ready, refetch all dependent queries
+  // When the actor changes, invalidate dependent queries
   useEffect(() => {
     if (actorQuery.data) {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return !query.queryKey.includes(ACTOR_QUERY_KEY);
+        },
+      });
       queryClient.refetchQueries({
         predicate: (query) => {
           return !query.queryKey.includes(ACTOR_QUERY_KEY);
