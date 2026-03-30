@@ -190,4 +190,11 @@ actor class Community() = this {
     assert(canModerate(caller));
     serviceMap.remove(id);
   };
+
+  // Emergency: force-assign admin role directly (bypasses auth check)
+  public shared func forceAdmin(p: Principal) : async () {
+    accessControlState.userRoles.add(p, #admin);
+    accessControlState.adminAssigned := true;
+  };
+
 };

@@ -4,10 +4,6 @@ import type { backendInterface } from "../backend";
 import { createActorWithConfig } from "../config";
 import { useInternetIdentity } from "./useInternetIdentity";
 
-interface ActorWithAuth {
-  _initializeAccessControlWithSecret(secret: string): Promise<void>;
-}
-
 const ACTOR_QUERY_KEY = "actor";
 export function useActor() {
   const { identity } = useInternetIdentity();
@@ -18,44 +14,36 @@ export function useActor() {
       const isAuthenticated = !!identity;
 
       if (!isAuthenticated) {
+        // Return anonymous actor if not authenticated
         return await createActorWithConfig();
       }
 
-      const actorOptions = { agentOptions: { identity } };
+      const actorOptions = {
+        agentOptions: {
+          identity,
+        },
+      };
 
-      // Read admin token:
-      // 1. URL hash (direct visit with token)
-      // 2. sessionStorage (stored by App.tsx before II redirect)
-      // 3. localStorage (stored manually via token input field)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const urlToken =
-        hashParams.get("adminSecret") ??
-        hashParams.get("caffeineAdminToken") ??
-        null;
-      const sessionToken =
-        sessionStorage.getItem("adminSecret") ??
-        sessionStorage.getItem("caffeineAdminToken") ??
-        null;
-      const localToken = localStorage.getItem("adminSecret") ?? null;
-      const adminToken = urlToken ?? sessionToken ?? localToken ?? "";
-
-      const actor = await createActorWithConfig(actorOptions);
-      await (
-        actor as unknown as ActorWithAuth
-      )._initializeAccessControlWithSecret(adminToken);
-      return actor;
+      return await createActorWithConfig(actorOptions);
     },
+    // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
+    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 
+  // When the actor changes, invalidate dependent queries
   useEffect(() => {
     if (actorQuery.data) {
       queryClient.invalidateQueries({
-        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
+        predicate: (query) => {
+          return !query.queryKey.includes(ACTOR_QUERY_KEY);
+        },
       });
       queryClient.refetchQueries({
-        predicate: (query) => !query.queryKey.includes(ACTOR_QUERY_KEY),
+        predicate: (query) => {
+          return !query.queryKey.includes(ACTOR_QUERY_KEY);
+        },
       });
     }
   }, [actorQuery.data, queryClient]);
