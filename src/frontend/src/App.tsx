@@ -101,7 +101,6 @@ interface Service {
 interface CommunityBackend {
   _initializeAccessControlWithSecret(secret: string): Promise<void>;
   getCallerUserRole(): Promise<UserRole>;
-  getRole(p: unknown): Promise<string>;
   isCallerAdmin(): Promise<boolean>;
   createNews(title: string, body: string): Promise<bigint>;
   getNews(): Promise<NewsPost[]>;
@@ -1516,20 +1515,31 @@ function ProfileTab({
 
   useEffect(() => {
     if (!actor || !identity) return;
-    const p = identity.getPrincipal();
-    console.log("[DEBUG] Calling getRole with principal:", p.toString());
-    console.log("[DEBUG] Actor object:", actor);
+    console.log(
+      "[DEBUG] Calling getCallerUserRole directly, principal:",
+      identity.getPrincipal().toString(),
+    );
     setDebugLoading(true);
     setDebugError(null);
     (actor as unknown as CommunityBackend)
-      .getRole(p)
+      .getCallerUserRole()
       .then((result) => {
-        console.log("[DEBUG] getRole result:", result);
-        setDebugRole(result);
+        console.log(
+          "[DEBUG] getCallerUserRole result:",
+          JSON.stringify(result),
+        );
+        const label = !result
+          ? "null"
+          : "admin" in result
+            ? "admin"
+            : "user" in result
+              ? "user"
+              : "guest/unknown";
+        setDebugRole(label);
         setDebugLoading(false);
       })
       .catch((err) => {
-        console.error("[DEBUG] getRole error:", err);
+        console.error("[DEBUG] getCallerUserRole error:", err);
         setDebugError(String(err));
         setDebugLoading(false);
       });
@@ -1603,7 +1613,7 @@ function ProfileTab({
       <Card className="border-yellow-400 border-2">
         <CardHeader>
           <CardTitle className="text-sm text-yellow-700">
-            🔍 DEBUG: getRole (пряме звернення до canister)
+            🔍 DEBUG: getCallerUserRole (пряме звернення до canister)
           </CardTitle>
         </CardHeader>
         <CardContent className="text-xs space-y-1">
